@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nb-culler-test
+spec:
+  schedule: "50 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          name: nb-culler-test
+        spec:
+          serviceAccountName: nb-culler-test
+          containers:
+          - name: nb-culler-test
+            image: quay.io/memalhot/nb-culler:latest
+            imagePullPolicy: Always
+            command: ["python3", "nb-culler.py"]
+            env:
+            - name: CULLER_DICT
+              value: |
+                {
+                  "cs391": {
+                    "cutoff": 43200,
+                    "ns": "bu-cs391-pmpp",
+                    "multiple-ns": true
+                  },
+                  "ds100": {
+                    "cutoff": 7200,
+                    "ns": "rhods-notebooks",
+                    "multiple-ns": false
+                  },
+                  "cs210": {
+                    "cutoff": 43200,
+                    "ns": "rhods-notebooks",
+                    "multiple-ns": false
+                  },
+                  "dsp562": {
+                    "cutoff": 10800,
+                    "ns": "rhods-notebooks",
+                    "multiple-ns": false
+                  }
+                }
+          restartPolicy: Never
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
