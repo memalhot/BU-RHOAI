@@ -80,6 +80,8 @@ def namespace_processing(class_info: tuple[dict, dict]) -> None:
     LOG.info("we get here")
     multi_ns, single_ns = class_info
 
+    process_single(single_ns)
+
     for class_name, config in multi_ns.items():
         cutoff = config["cutoff"]
         namespaces = config["namespaces"]
@@ -100,6 +102,86 @@ def namespace_processing(class_info: tuple[dict, dict]) -> None:
             except Exception as e:
                 LOG.error("Error processing namespace %s: %s", namespace, e)
 
+def process_single(single_ns: dict[str, dict]) -> None:
+    """
+    All single-namespace classes share the same namespace.
+    """
+    if not single_ns:
+        return
+
+    # shared namespace (assumed identical across all entries)
+    namespace = next(iter(single_ns.values()))["namespace"]
+
+    LOG.info(
+        "Processing shared single namespace %s for %d class(es)",
+        namespace,
+        len(single_ns),
+    )
+
+    try:
+        # buyild a lookup for faster parsing
+        user_to_info: dict[str, dict] = {}
+
+        for class_name, config in single_ns.items():
+            cutoff = int(config["cutoff"])
+            users = get_group_users(class_name)
+
+            LOG.info("Loaded group %s (%d users, cutoff=%ss)", class_name, len(users), cutoff)
+
+            for u in users:
+                u = str(u).strip()
+                if not u:
+                    continue
+                if u in user_to_info:
+                    prev = user_to_info[u]
+                    if cutoff > prev["cutoff"]:
+                        LOG.warning(
+                            "User %s in multiple groups (%s, %s). Using more lenient cutoff %ss from %s.",
+                            u, prev["class"], class_name, cutoff, class_name
+                        )
+                        user_to_info[u] = {"class": class_name, "cutoff": cutoff}
+                else:
+                    user_to_info[u] = {"class": class_name, "cutoff": cutoff}
+
+        LOG.info("Built user_to_info map with %d total users", len(user_to_info))
+
+        # assume all the classes run in one project (rhods-notebooks)
+        with oc.project(namespace):
+            notebooks = oc.selector("notebooks").objects()
+
+            for nb_obj in notebooks:
+                nb = nb_obj.as_dict()
+
+                if not get_running_started_at(nb):
+                    continue
+
+                username = get_notebook_username(nb)
+                if not username:
+                    LOG.warning(
+                        "Notebook %s missing username annotation — skipping",
+                        (nb.get("metadata") or {}).get("name"),
+                    )
+                    continue
+
+                info = user_to_info.get(username)
+                if not info:
+                    LOG.info("DELETE USER HERE")
+                    continue
+
+                cutoff = info["cutoff"]
+                class_name = info["class"]
+
+                LOG.info(
+                    "Notebook user=%s matched class=%s (cutoff=%ss)",
+                    username,
+                    class_name,
+                    cutoff,
+                )
+
+                stop_notebook(nb, namespace, cutoff)
+
+    except Exception as e:
+        LOG.error("Error processing shared single namespace %s: %s", namespace, e)
 
 
 if __name__ == '__main__':
