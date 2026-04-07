@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scaled-culler
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          name: scaled-culler
+        spec:
+          serviceAccountName: scaled-culler
+          containers:
+          - name: scaled-culler
+            image: quay.io/memalhot/nb-culler:latest
+            imagePullPolicy: Always
+            command: ["python3", "nb-culler.py"]
+            env:
+            - name: CULLER_DICT
+              # CLASS NAME SHOULD BE GROUP NAME & SET AS VALUE FOR THE JSON DICT
+              # CUTOFF IS THE ALLOWED TIME BEFORE CULL
+              # NS IS NAMESPACE OR NAMESPACE PREFIX CLASS RUNS IN
+              # MULTIPLE NS SHOULD BE WHETHER CLASS RUNS IN MULTIPLE NAMESPACES OR NOT
+              value: |
+                {
+                  "cs391": {
+                  "cutoff": 43200,
+                  "ns": "bu-cs391-pmpp",
+                  "multiple-ns": true
+                  },
+                  "ds100": {
+                  "cutoff": 7200,
+                  "ns": "rhods-notebooks",
+                  "multiple-ns": false
+                  },
+                  "cs210": {
+                  "cutoff": 43200,
+                  "ns": "rhods-notebooks",
+                  "multiple-ns": false
+                  },
+                  "dsp562": {
+                  "cutoff": 10800,
+                  "ns": "rhods-notebooks",
+                  "multiple-ns": false
+                  }
+                }
+          restartPolicy: Never
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7

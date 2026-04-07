@@ -76,6 +76,69 @@ Alternatively, to run the script immediately:
 
 This will trigger the cronjob to spawn a job manually.
 
+
+### scaled-nb-culler
+1. Ensure you are logged in to your OpenShift account via the CLI and you have access to ope-rhods-testing namespace.
+Then run:
+```
+oc project ope-rhods-testing
+```
+
+2. Ensure the environment variables are correctly set in `cronjobs/scaled-nb-culler/cronjob`: <br>
+
+   Create a json dict for each class, the key must be the group name of the class
+   The first value should be "cutoff" which is the cutoff time for the class
+   The next value should be "ns" which is the namespace in which the class is running, or if there are multiple namespaces, the prefix of the namespace that should be matched
+   The last value should be "multiple-ns" which value should be set to `true` if the class runs in multiple namespaces or `false` without quotes, if the class runs in a single namespace
+
+For example:
+```
+    value: |
+    {
+        "cs391": {
+        "cutoff": 43200,
+        "ns": "bu-cs391-pmpp",
+        "multiple-ns": true
+        },
+        "ds100": {
+        "cutoff": 7200,
+        "ns": "rhods-notebooks",
+        "multiple-ns": false
+        },
+        "cs210": {
+        "cutoff": 43200,
+        "ns": "rhods-notebooks",
+        "multiple-ns": false
+        },
+        "dsp562": {
+        "cutoff": 10800,
+        "ns": "rhods-notebooks",
+        "multiple-ns": false
+        }
+    }
+```
+3. Ensure that the namespace value in `kustomization.yaml` is correct.
+
+4. From cronjobs/scaled-nb-culler/ directory run:
+```
+    oc apply -k . --as system:admin
+```
+
+This will deploy all the necessary resources for the cronjob to run on the specified schedule.
+
+Alternatively, to run the script immediately:
+
+1. Ensure you followed the steps above
+2. Verify the cronjob `scaled-culler` exists
+```
+    oc get cronjob scaled-culler
+    ```
+
+3. Run:
+```
+    kubectl create -n rhods-notebooks job --from=cronjob/scaled-culler scaled-culler
+```
+
 ### multiple-ns-group-sync
 This cronjob runs once every hours at the top of the hour, adding all users with the edit rolebinding in the specified namespaces to the specified group. This cronjob differs from the original `group-sync` cronjob by syncing with multiple namespaces rather than just one namespace.
 
